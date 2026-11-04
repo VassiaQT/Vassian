@@ -71,13 +71,14 @@ jobs:
           mkdir build
           cd build
           # List available CMake generators
-          cmake --help | grep "Visual Studio" || true
+          cmake --help | Select-String "Visual Studio" || true
           
           # Try VS 17 2022 first, then fallback to Ninja
-          cmake -G "Visual Studio 17 2022" -A x64 `
+          $result = cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DLLVM_DIR="$env:LLVM_DIR" `
-                .. 2>&1 || (
+                .. 2>&1
+          if ($LASTEXITCODE -ne 0) {
             Write-Host "VS generator failed, trying Ninja..."
             cmake -G "Ninja" `
                   -DCMAKE_BUILD_TYPE=Release `
@@ -85,7 +86,7 @@ jobs:
                   -DCMAKE_CXX_COMPILER=clang-cl `
                   -DLLVM_DIR="$env:LLVM_DIR" `
                   ..
-          )
+          }
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
