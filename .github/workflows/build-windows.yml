@@ -23,8 +23,8 @@ jobs:
       - name: Install LLVM via Chocolatey
         run: |
           choco install llvm -y --version 18.1.8
-          "C:\Program Files\LLVM\bin\llvm-config.exe" --version
-          "C:\Program Files\LLVM\bin\clang.exe" --version
+          & "C:\Program Files\LLVM\bin\llvm-config.exe" --version
+          & "C:\Program Files\LLVM\bin\clang.exe" --version
         shell: pwsh
 
       - name: Configure CMake
