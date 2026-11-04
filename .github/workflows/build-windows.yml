@@ -30,8 +30,7 @@ jobs:
               "C:\Program Files\LLVM\bin\llvm-config.exe",
               "C:\Program Files (x86)\LLVM\bin\llvm-config.exe",
               "$env:ProgramFiles\LLVM\bin\llvm-config.exe",
-              "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe",
-              (Join-Path (Get-ToolsLocation) "LLVM\bin\llvm-config.exe")
+              "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe"
             )
             foreach ($p in $possiblePaths) {
               if (Test-Path $p) { $llvmPath = $p; break }
