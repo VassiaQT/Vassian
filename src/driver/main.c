@@ -9,6 +9,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define VASSIAN_VERSION "0.1.0"
+#define VASSIAN_GITHUB_REPO "VassiaQT/Vassian"
+
+static void print_version(void) {
+    printf("Vassian %s\n", VASSIAN_VERSION);
+    printf("GitHub: https://github.com/%s\n", VASSIAN_GITHUB_REPO);
+}
+
+static void print_update_info(void) {
+    printf("To update Vassian:\n");
+    printf("  1. Download latest release from:\n");
+    printf("     https://github.com/%s/releases/latest\n", VASSIAN_GITHUB_REPO);
+    printf("  2. Or build from source:\n");
+    printf("     git pull && mkdir build && cd build && cmake .. && make\n");
+    printf("  3. Or use package manager (if available):\n");
+    printf("     scoop update vassian\n");
+    printf("     choco upgrade vassian\n");
+}
+
 static const char* read_file(const char* filename, size_t* out_len) {
     FILE* f = fopen(filename, "rb");
     if (!f) return NULL;
@@ -38,6 +57,8 @@ static void print_usage(const char* prog) {
     printf("  --emit-llvm    Emit LLVM IR (.ll)\n");
     printf("  --emit-asm     Emit assembly (.s)\n");
     printf("  --emit-obj     Emit object file (.o)\n");
+    printf("  -v, --version  Show version info\n");
+    printf("  --update       Show update instructions\n");
     printf("  -h, --help     Show this help\n");
 }
 
@@ -54,6 +75,12 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if (strcmp(argv[i], "--update") == 0) {
+            print_update_info();
             return 0;
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             output_file = argv[++i];
