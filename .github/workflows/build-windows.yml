@@ -69,17 +69,31 @@ jobs:
 
       - name: Configure CMake
         run: |
-          Write-Host "Using LLVM_DIR: $env:LLVM_DIR"
-          # Verify LLVM_DIR has LLVMConfig.cmake
-          if (-not (Test-Path "$env:LLVM_DIR\LLVMConfig.cmake")) {
-            Write-Error "LLVMConfig.cmake not found in $env:LLVM_DIR"
+          # Use Chocolatey LLVM path directly (not Android NDK)
+          $llvmDir = "C:\Program Files\LLVM\lib\cmake\llvm"
+          if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
+            # Try alternative paths
+            $altPaths = @(
+              "C:\Program Files\LLVM\lib\cmake\llvm",
+              "C:\Program Files (x86)\LLVM\lib\cmake\llvm",
+              "$env:ProgramFiles\LLVM\lib\cmake\llvm",
+              "$env:ProgramFiles(x86)\LLVM\lib\cmake\llvm"
+            )
+            foreach ($p in $altPaths) {
+              if (Test-Path "$p\LLVMConfig.cmake") { $llvmDir = $p; break }
+            }
+          }
+          
+          Write-Host "Using LLVM_DIR: $llvmDir"
+          if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
+            Write-Error "LLVMConfig.cmake not found in $llvmDir"
             exit 1
           }
           
           # Try VS 17 2022 first
           $result = cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
-                -DLLVM_DIR="$env:LLVM_DIR" `
+                -DLLVM_DIR="$llvmDir" `
                 -B build 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Host "VS generator failed, trying Ninja with clang-cl..."
@@ -88,7 +102,7 @@ jobs:
                   -DCMAKE_BUILD_TYPE=Release `
                   -DCMAKE_C_COMPILER=clang-cl `
                   -DCMAKE_CXX_COMPILER=clang-cl `
-                  -DLLVM_DIR="$env:LLVM_DIR" `
+                  -DLLVM_DIR="$llvmDir" `
                   -B build
           }
         shell: pwsh
