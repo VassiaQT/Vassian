@@ -68,45 +68,39 @@ jobs:
 
       - name: Configure CMake
         run: |
-          mkdir build
-          cd build
-          # List available CMake generators
-          cmake --help | Select-String "Visual Studio" || true
-          
-          # Try VS 17 2022 first, then fallback to Ninja
+          # Try VS 17 2022 first
           $result = cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DLLVM_DIR="$env:LLVM_DIR" `
-                .. 2>&1
+                -B build 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "VS generator failed, trying Ninja..."
+            Write-Host "VS generator failed, trying Ninja with clang-cl..."
+            Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
             cmake -G "Ninja" `
                   -DCMAKE_BUILD_TYPE=Release `
                   -DCMAKE_C_COMPILER=clang-cl `
                   -DCMAKE_CXX_COMPILER=clang-cl `
                   -DLLVM_DIR="$env:LLVM_DIR" `
-                  ..
+                  -B build
           }
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
       - name: Build vassian.exe
         run: |
-          cd build
-          cmake --build . --config Release --parallel 2
+          cmake --build build --config Release --parallel 2
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
       - name: Verify executable
         run: |
-          cd build/src/Release
-          .\vassian.exe ../test.vas 2>&1 || echo "Build successful (test may not have --help)"
+          .\build\src\Release\vassian.exe ..\test.vas 2>&1 || echo "Build successful (test may not have --help)"
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
       - name: Copy LLVM runtime DLLs
         run: |
-          cd build/src/Release
+          cd build\src\Release
           $llvmBin = Split-Path (Get-Command llvm-config.exe).Source
           copy "$llvmBin\*.dll" .
         shell: pwsh
