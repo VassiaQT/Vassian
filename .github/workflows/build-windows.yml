@@ -70,16 +70,22 @@ jobs:
         run: |
           mkdir build
           cd build
-          # Find Visual Studio
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (Test-Path $vswhere) {
-            $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-            Write-Host "Visual Studio found at: $vsPath"
-          }
+          # List available CMake generators
+          cmake --help | grep "Visual Studio" || true
+          
+          # Try VS 17 2022 first, then fallback to Ninja
           cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DLLVM_DIR="$env:LLVM_DIR" `
-                ..
+                .. 2>&1 || (
+            Write-Host "VS generator failed, trying Ninja..."
+            cmake -G "Ninja" `
+                  -DCMAKE_BUILD_TYPE=Release `
+                  -DCMAKE_C_COMPILER=clang-cl `
+                  -DCMAKE_CXX_COMPILER=clang-cl `
+                  -DLLVM_DIR="$env:LLVM_DIR" `
+                  ..
+          )
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
