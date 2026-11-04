@@ -23,11 +23,30 @@ jobs:
       - name: Install LLVM via Chocolatey
         run: |
           choco install llvm -y --version 18.1.8 --allow-downgrade --force
-          $llvmPath = (Get-Command llvm-config.exe).Source
+          $llvmPath = "C:\Program Files\LLVM\bin\llvm-config.exe"
+          if (-not (Test-Path $llvmPath)) {
+            # Try to find it in common locations
+            $possiblePaths = @(
+              "C:\Program Files\LLVM\bin\llvm-config.exe",
+              "C:\Program Files (x86)\LLVM\bin\llvm-config.exe",
+              "$env:ProgramFiles\LLVM\bin\llvm-config.exe",
+              "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe",
+              (Join-Path (Get-ToolsLocation) "LLVM\bin\llvm-config.exe")
+            )
+            foreach ($p in $possiblePaths) {
+              if (Test-Path $p) { $llvmPath = $p; break }
+            }
+          }
+          if (-not (Test-Path $llvmPath)) {
+            Write-Error "llvm-config.exe not found after LLVM install"
+            exit 1
+          }
           Write-Host "LLVM found at: $llvmPath"
           & $llvmPath --version
-          & (Join-Path (Split-Path $llvmPath) "clang.exe") --version
-          echo "LLVM_DIR=$(Split-Path (Split-Path $llvmPath))/lib/cmake/llvm" >> $env:GITHUB_ENV
+          $clangPath = Join-Path (Split-Path $llvmPath) "clang.exe"
+          & $clangPath --version
+          $llvmDir = Join-Path (Split-Path (Split-Path $llvmPath)) "lib\cmake\llvm"
+          echo "LLVM_DIR=$llvmDir" >> $env:GITHUB_ENV
         shell: pwsh
 
       - name: Configure CMake
