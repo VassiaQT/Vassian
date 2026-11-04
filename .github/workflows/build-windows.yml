@@ -22,9 +22,12 @@ jobs:
 
       - name: Install LLVM via Chocolatey
         run: |
-          choco install llvm -y --version 18.1.8
-          & "C:\Program Files\LLVM\bin\llvm-config.exe" --version
-          & "C:\Program Files\LLVM\bin\clang.exe" --version
+          choco install llvm -y --version 18.1.8 --allow-downgrade --force
+          $llvmPath = (Get-Command llvm-config.exe).Source
+          Write-Host "LLVM found at: $llvmPath"
+          & $llvmPath --version
+          & (Join-Path (Split-Path $llvmPath) "clang.exe") --version
+          echo "LLVM_DIR=$(Split-Path (Split-Path $llvmPath))/lib/cmake/llvm" >> $env:GITHUB_ENV
         shell: pwsh
 
       - name: Configure CMake
@@ -33,7 +36,7 @@ jobs:
           cd build
           cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
-                -DLLVM_DIR="C:/Program Files/LLVM/lib/cmake/llvm" `
+                -DLLVM_DIR="$env:LLVM_DIR" `
                 ..
         shell: pwsh
         working-directory: ${{ github.workspace }}
@@ -55,7 +58,8 @@ jobs:
       - name: Copy LLVM runtime DLLs
         run: |
           cd build/src/Release
-          copy "C:\Program Files\LLVM\bin\*.dll" .
+          $llvmBin = Split-Path (Get-Command llvm-config.exe).Source
+          copy "$llvmBin\*.dll" .
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
