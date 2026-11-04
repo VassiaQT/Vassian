@@ -23,23 +23,41 @@ jobs:
       - name: Install LLVM via Chocolatey
         run: |
           choco install llvm -y --version 18.1.8 --allow-downgrade --force
-          $llvmPath = "C:\Program Files\LLVM\bin\llvm-config.exe"
-          if (-not (Test-Path $llvmPath)) {
-            # Try to find it in common locations
-            $possiblePaths = @(
-              "C:\Program Files\LLVM\bin\llvm-config.exe",
-              "C:\Program Files (x86)\LLVM\bin\llvm-config.exe",
-              "$env:ProgramFiles\LLVM\bin\llvm-config.exe",
-              "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe"
-            )
-            foreach ($p in $possiblePaths) {
-              if (Test-Path $p) { $llvmPath = $p; break }
+          
+          # Search for llvm-config.exe in all possible locations
+          $llvmPath = $null
+          $searchPaths = @(
+            "C:\Program Files\LLVM\bin\llvm-config.exe",
+            "C:\Program Files (x86)\LLVM\bin\llvm-config.exe",
+            "$env:ProgramFiles\LLVM\bin\llvm-config.exe",
+            "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe",
+            "$env:ChocolateyInstall\lib\llvm\tools\bin\llvm-config.exe",
+            "$env:ChocolateyInstall\bin\llvm-config.exe",
+            "C:\Tools\LLVM\bin\llvm-config.exe"
+          )
+          
+          foreach ($p in $searchPaths) {
+            if (Test-Path $p) { 
+              $llvmPath = $p
+              Write-Host "Found llvm-config at: $p"
+              break 
             }
           }
-          if (-not (Test-Path $llvmPath)) {
+          
+          # If still not found, search recursively
+          if (-not $llvmPath) {
+            Write-Host "Searching for llvm-config.exe..."
+            $found = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:ChocolateyInstall" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $llvmPath = $found.FullName }
+          }
+          
+          if (-not $llvmPath) {
             Write-Error "llvm-config.exe not found after LLVM install"
+            Write-Host "Searched paths:"
+            $searchPaths | ForEach-Object { Write-Host "  $_ - $(if (Test-Path $_) { 'EXISTS' } else { 'NOT FOUND' })" }
             exit 1
           }
+          
           Write-Host "LLVM found at: $llvmPath"
           & $llvmPath --version
           $clangPath = Join-Path (Split-Path $llvmPath) "clang.exe"
