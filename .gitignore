@@ -1,0 +1,55 @@
+# Build directories
+build/
+build_wsl/
+build_win/
+build_*/
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.obj
+*.a
+*.lib
+*.out
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.cmake
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+test.ll
+test.s
+test.o
+a.out
+
+# Logs
+*.log
+
+# Private data (add your specific files here)
+*.pem
+*.key
+*.crt
+secrets/
+.env
+*.local
+
+# LLVM build artifacts (if building LLVM from source)
+llvm-build/

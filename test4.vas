@@ -1,0 +1,10 @@
+fn main() -> int {
+    var int x = 10;
+    var int y = 20;
+    if (x < y) {
+        print(x);
+    } else {
+        print(y);
+    }
+    return 0;
+}

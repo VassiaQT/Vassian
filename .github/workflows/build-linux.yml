@@ -1,0 +1,61 @@
+name: Build Linux vassian (WSL/Linux)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build vassian (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install LLVM
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21 all
+          llvm-config-21 --version
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-21 -DCMAKE_CXX_COMPILER=clang++-21 ..
+
+      - name: Build vassian
+        run: |
+          cd build
+          make -j4
+
+      - name: Test vassian
+        run: |
+          cd build
+          ./src/vassian ../test.vas
+
+      - name: Upload vassian (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vassian-linux-x64
+          path: build/src/vassian
+          retention-days: 30
+
+      - name: Create Release on tag
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/src/vassian
+          tag_name: ${{ github.ref_name }}
+          name: Vassian ${{ github.ref_name }} (Linux)
+          draft: false
+          prerelease: false

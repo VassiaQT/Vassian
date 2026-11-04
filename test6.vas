@@ -1,0 +1,9 @@
+fn main() -> int {
+    var float pi = 3.14;
+    var bool flag = true;
+    var int x = 5;
+    var int y = 10;
+    var bool cmp = x < y;
+    print(cmp);
+    return 0;
+}

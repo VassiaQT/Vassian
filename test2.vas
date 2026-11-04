@@ -1,0 +1,7 @@
+fn main() -> int {
+    var int a = 1;
+    var int b = 2;
+    var int c = a + b * 3;
+    print(c);
+    return 0;
+}
