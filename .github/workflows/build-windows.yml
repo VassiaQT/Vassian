@@ -63,11 +63,19 @@ jobs:
           $clangPath = Join-Path (Split-Path $llvmPath) "clang.exe"
           & $clangPath --version
           $llvmDir = Join-Path (Split-Path (Split-Path $llvmPath)) "lib\cmake\llvm"
+          Write-Host "LLVM_DIR = $llvmDir"
           echo "LLVM_DIR=$llvmDir" >> $env:GITHUB_ENV
         shell: pwsh
 
       - name: Configure CMake
         run: |
+          Write-Host "Using LLVM_DIR: $env:LLVM_DIR"
+          # Verify LLVM_DIR has LLVMConfig.cmake
+          if (-not (Test-Path "$env:LLVM_DIR\LLVMConfig.cmake")) {
+            Write-Error "LLVMConfig.cmake not found in $env:LLVM_DIR"
+            exit 1
+          }
+          
           # Try VS 17 2022 first
           $result = cmake -G "Visual Studio 17 2022" -A x64 `
                 -DCMAKE_BUILD_TYPE=Release `
