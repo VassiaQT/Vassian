@@ -69,6 +69,9 @@ jobs:
 
       - name: Configure CMake
         run: |
+          # Unset any pre-existing LLVM_DIR from runner environment (e.g., Android NDK)
+          $env:LLVM_DIR = $null
+          
           # Use LLVM_DIR from previous step (set via GITHUB_ENV)
           $llvmDir = $env:LLVM_DIR
           Write-Host "Using LLVM_DIR from env: $llvmDir"
@@ -114,6 +117,8 @@ jobs:
           }
         shell: pwsh
         working-directory: ${{ github.workspace }}
+        env:
+          LLVM_DIR: ""
 
       - name: Build vassian.exe
         run: |
