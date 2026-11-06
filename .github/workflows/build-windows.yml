@@ -69,10 +69,14 @@ jobs:
 
       - name: Configure CMake
         run: |
-          # Use Chocolatey LLVM path directly (not Android NDK)
-          $llvmDir = "C:\Program Files\LLVM\lib\cmake\llvm"
+          # Use LLVM_DIR from previous step (set via GITHUB_ENV)
+          $llvmDir = $env:LLVM_DIR
+          Write-Host "Using LLVM_DIR from env: $llvmDir"
+          
           if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
-            # Try alternative paths
+            Write-Error "LLVMConfig.cmake not found in $llvmDir"
+            Write-Host "Trying fallback search..."
+            # Fallback: search common locations
             $altPaths = @(
               "C:\Program Files\LLVM\lib\cmake\llvm",
               "C:\Program Files (x86)\LLVM\lib\cmake\llvm",
@@ -80,13 +84,16 @@ jobs:
               "$env:ProgramFiles(x86)\LLVM\lib\cmake\llvm"
             )
             foreach ($p in $altPaths) {
-              if (Test-Path "$p\LLVMConfig.cmake") { $llvmDir = $p; break }
+              if (Test-Path "$p\LLVMConfig.cmake") { 
+                $llvmDir = $p
+                Write-Host "Found LLVMConfig.cmake at: $llvmDir"
+                break 
+              }
             }
           }
           
-          Write-Host "Using LLVM_DIR: $llvmDir"
           if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
-            Write-Error "LLVMConfig.cmake not found in $llvmDir"
+            Write-Error "LLVMConfig.cmake not found in any location"
             exit 1
           }
           
@@ -123,8 +130,19 @@ jobs:
       - name: Copy LLVM runtime DLLs
         run: |
           cd build\src\Release
-          $llvmBin = Split-Path (Get-Command llvm-config.exe).Source
-          copy "$llvmBin\*.dll" .
+          $llvmBin = Join-Path (Split-Path $env:LLVM_DIR) "bin"
+          if (Test-Path $llvmBin) {
+            copy "$llvmBin\*.dll" .
+          } else {
+            Write-Host "LLVM bin not found at $llvmBin, trying to find llvm-config..."
+            $llvmConfig = Get-Command llvm-config.exe -ErrorAction SilentlyContinue
+            if ($llvmConfig) {
+              $llvmBin = Split-Path $llvmConfig.Source
+              copy "$llvmBin\*.dll" .
+            } else {
+              Write-Warning "Could not find LLVM bin directory, skipping DLL copy"
+            }
+          }
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
