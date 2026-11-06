@@ -4,7 +4,6 @@ file(GLOB_RECURSE SRC_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/ast/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/sema/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/codegen/*.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/driver/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.c
 )
 
@@ -32,4 +31,11 @@ target_link_libraries(vassian vassian_lib)
 
 if(NOT WIN32)
     target_link_libraries(vassian LLVM)
+endif()
+
+if(WIN32 AND EXISTS "${LLVM_BINARY_DIRS}/LLVM-C.dll")
+    add_custom_command(TARGET vassian POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${LLVM_BINARY_DIRS}/LLVM-C.dll"
+            "$<TARGET_FILE_DIR:vassian>/LLVM-C.dll")
 endif()

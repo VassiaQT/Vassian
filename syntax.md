@@ -71,9 +71,22 @@ print([value]);
 
 ----
 
-llvm-config --version
-ls "C:\Program Files\LLVM\include\llvm-c\"  # Should show Core.h, Target.h, etc.
-Then rebuild:
-cd C:\Users\vassi\Documents\Vassian\build
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --config Debug
+## Building on Windows
+
+The LLVM Windows binaries ship `LLVM-C.lib`/`LLVM-C.dll` but not the `llvm-c`
+development headers. This repository vendors the matching headers under
+`cmake/llvm-c-headers`, so only LLVM itself needs to be installed:
+
+    choco install llvm --version=18.1.8 -y
+
+Configure and build with Ninja + clang-cl:
+
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER="C:\Program Files\LLVM\bin\clang-cl.exe" -DCMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl.exe" -DLLVM_ROOT_DIR="C:\Program Files\LLVM" -B build
+    cmake --build build --parallel 2
+
+The build automatically copies `LLVM-C.dll` next to `vassian.exe`. Then run:
+
+    build\src\vassian.exe --version
+    build\src\vassian.exe test.vas
+
+GitHub Actions builds the same way (see `.github/workflows/build-windows.yml`).

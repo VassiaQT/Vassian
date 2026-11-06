@@ -3,6 +3,7 @@ name: Build Windows vassian.exe
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -20,154 +21,97 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install LLVM via Chocolatey
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install LLVM
+        shell: pwsh
         run: |
-          choco install llvm -y --version 18.1.8 --allow-downgrade --force
-          
-          # Search for llvm-config.exe in all possible locations
-          $llvmPath = $null
-          $searchPaths = @(
-            "C:\Program Files\LLVM\bin\llvm-config.exe",
-            "C:\Program Files (x86)\LLVM\bin\llvm-config.exe",
-            "$env:ProgramFiles\LLVM\bin\llvm-config.exe",
-            "$env:ProgramFiles(x86)\LLVM\bin\llvm-config.exe",
-            "$env:ChocolateyInstall\lib\llvm\tools\bin\llvm-config.exe",
-            "$env:ChocolateyInstall\bin\llvm-config.exe",
-            "C:\Tools\LLVM\bin\llvm-config.exe"
-          )
-          
-          foreach ($p in $searchPaths) {
-            if (Test-Path $p) { 
-              $llvmPath = $p
-              Write-Host "Found llvm-config at: $p"
-              break 
+          choco install llvm --version=18.1.8 -y --allow-downgrade --no-progress
+
+          # Locate the LLVM installation (Chocolatey usually installs to
+          # C:\Program Files\LLVM, but layouts can differ between versions).
+          $root = "C:\Program Files\LLVM"
+          if (-not (Test-Path "$root\lib\LLVM-C.lib")) {
+            Write-Host "LLVM-C.lib not found in default location, searching..."
+            $found = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)" `
+              -Recurse -Filter "LLVM-C.lib" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            if ($found) {
+              $root = Split-Path (Split-Path $found.FullName)
             }
           }
-          
-          # If still not found, search recursively
-          if (-not $llvmPath) {
-            Write-Host "Searching for llvm-config.exe..."
-            $found = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:ChocolateyInstall" -Recurse -Filter "llvm-config.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) { $llvmPath = $found.FullName }
+
+          if (-not (Test-Path "$root\lib\LLVM-C.lib")) {
+            throw "LLVM-C.lib not found. LLVM was not installed correctly."
           }
-          
-          if (-not $llvmPath) {
-            Write-Error "llvm-config.exe not found after LLVM install"
-            Write-Host "Searched paths:"
-            $searchPaths | ForEach-Object { Write-Host "  $_ - $(if (Test-Path $_) { 'EXISTS' } else { 'NOT FOUND' })" }
-            exit 1
-          }
-          
-          Write-Host "LLVM found at: $llvmPath"
-          & $llvmPath --version
-          $clangPath = Join-Path (Split-Path $llvmPath) "clang.exe"
-          & $clangPath --version
-          $llvmDir = Join-Path (Split-Path (Split-Path $llvmPath)) "lib\cmake\llvm"
-          Write-Host "LLVM_DIR = $llvmDir"
-          echo "LLVM_DIR=$llvmDir" >> $env:GITHUB_ENV
-        shell: pwsh
+
+          Write-Host "Using LLVM at: $root"
+          & "$root\bin\clang-cl.exe" --version
+
+          "$root\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "LLVM_ROOT_DIR=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure CMake
-        run: |
-          # Unset any pre-existing LLVM_DIR from runner environment (e.g., Android NDK)
-          $env:LLVM_DIR = $null
-          
-          # Use LLVM_DIR from previous step (set via GITHUB_ENV)
-          $llvmDir = $env:LLVM_DIR
-          Write-Host "Using LLVM_DIR from env: $llvmDir"
-          
-          if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
-            Write-Error "LLVMConfig.cmake not found in $llvmDir"
-            Write-Host "Trying fallback search..."
-            # Fallback: search common locations
-            $altPaths = @(
-              "C:\Program Files\LLVM\lib\cmake\llvm",
-              "C:\Program Files (x86)\LLVM\lib\cmake\llvm",
-              "$env:ProgramFiles\LLVM\lib\cmake\llvm",
-              "$env:ProgramFiles(x86)\LLVM\lib\cmake\llvm"
-            )
-            foreach ($p in $altPaths) {
-              if (Test-Path "$p\LLVMConfig.cmake") { 
-                $llvmDir = $p
-                Write-Host "Found LLVMConfig.cmake at: $llvmDir"
-                break 
-              }
-            }
-          }
-          
-          if (-not (Test-Path "$llvmDir\LLVMConfig.cmake")) {
-            Write-Error "LLVMConfig.cmake not found in any location"
-            exit 1
-          }
-          
-          # Try VS 17 2022 first
-          $result = cmake -G "Visual Studio 17 2022" -A x64 `
-                -DCMAKE_BUILD_TYPE=Release `
-                -DLLVM_DIR="$llvmDir" `
-                -B build 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "VS generator failed, trying Ninja with clang-cl..."
-            Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-            cmake -G "Ninja" `
-                  -DCMAKE_BUILD_TYPE=Release `
-                  -DCMAKE_C_COMPILER=clang-cl `
-                  -DCMAKE_CXX_COMPILER=clang-cl `
-                  -DLLVM_DIR="$llvmDir" `
-                  -B build
-          }
         shell: pwsh
-        working-directory: ${{ github.workspace }}
-        env:
-          LLVM_DIR: ""
+        run: |
+          cmake -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER="$env:LLVM_ROOT_DIR/bin/clang-cl.exe" `
+            -DCMAKE_CXX_COMPILER="$env:LLVM_ROOT_DIR/bin/clang-cl.exe" `
+            -DLLVM_ROOT_DIR="$env:LLVM_ROOT_DIR" `
+            -B build
 
       - name: Build vassian.exe
-        run: |
-          cmake --build build --config Release --parallel 2
         shell: pwsh
-        working-directory: ${{ github.workspace }}
+        run: |
+          cmake --build build --parallel 2
 
       - name: Verify executable
-        run: |
-          .\build\src\Release\vassian.exe ..\test.vas 2>&1 || echo "Build successful (test may not have --help)"
         shell: pwsh
-        working-directory: ${{ github.workspace }}
-
-      - name: Copy LLVM runtime DLLs
         run: |
-          cd build\src\Release
-          $llvmBin = Join-Path (Split-Path $env:LLVM_DIR) "bin"
-          if (Test-Path $llvmBin) {
-            copy "$llvmBin\*.dll" .
-          } else {
-            Write-Host "LLVM bin not found at $llvmBin, trying to find llvm-config..."
-            $llvmConfig = Get-Command llvm-config.exe -ErrorAction SilentlyContinue
-            if ($llvmConfig) {
-              $llvmBin = Split-Path $llvmConfig.Source
-              copy "$llvmBin\*.dll" .
-            } else {
-              Write-Warning "Could not find LLVM bin directory, skipping DLL copy"
-            }
+          if (-not (Test-Path "build\src\vassian.exe")) {
+            throw "vassian.exe was not produced"
           }
-        shell: pwsh
-        working-directory: ${{ github.workspace }}
+          if (-not (Test-Path "build\src\LLVM-C.dll")) {
+            throw "LLVM-C.dll was not copied next to vassian.exe"
+          }
+          .\build\src\vassian.exe --version
+          .\build\src\vassian.exe --help
+          .\build\src\vassian.exe .\test.vas --emit-llvm -o out.ll
+          if (-not (Test-Path "out.ll")) {
+            throw "vassian.exe failed to compile test.vas"
+          }
 
-      - name: Upload vassian.exe + DLLs
+      - name: Package release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build\src\vassian.exe dist\vassian.exe
+          Copy-Item build\src\LLVM-C.dll dist\LLVM-C.dll
+          Compress-Archive -Path dist\vassian.exe, dist\LLVM-C.dll `
+            -DestinationPath vassian-windows-x64.zip -Force
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: vassian-windows-x64
           path: |
-            build/src/Release/vassian.exe
-            build/src/Release/*.dll
+            dist/vassian.exe
+            dist/LLVM-C.dll
+            vassian-windows-x64.zip
           retention-days: 30
 
-      - name: Create Release on tag
+      - name: Create release on tag
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/src/Release/vassian.exe
-            build/src/Release/*.dll
-          tag_name: ${{ github.ref_name }}
-          name: Vassian ${{ github.ref_name }}
+            dist/vassian.exe
+            dist/LLVM-C.dll
+            vassian-windows-x64.zip
+          name: Vassian ${{ github.ref_name }} (Windows)
           draft: false
           prerelease: false

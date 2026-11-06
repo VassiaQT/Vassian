@@ -12,6 +12,12 @@
 #define VASSIAN_VERSION "0.1.0"
 #define VASSIAN_GITHUB_REPO "VassiaQT/Vassian"
 
+#ifdef _WIN32
+#define VASSIAN_DEFAULT_OUTPUT "a.exe"
+#else
+#define VASSIAN_DEFAULT_OUTPUT "a.out"
+#endif
+
 static void print_version(void) {
     printf("Vassian %s\n", VASSIAN_VERSION);
     printf("GitHub: https://github.com/%s\n", VASSIAN_GITHUB_REPO);
@@ -53,7 +59,7 @@ static const char* read_file(const char* filename, size_t* out_len) {
 static void print_usage(const char* prog) {
     printf("Usage: %s [options] <input.vas>\n", prog);
     printf("Options:\n");
-    printf("  -o <file>      Output file (default: a.out)\n");
+    printf("  -o <file>      Output file (default: %s)\n", VASSIAN_DEFAULT_OUTPUT);
     printf("  --emit-llvm    Emit LLVM IR (.ll)\n");
     printf("  --emit-asm     Emit assembly (.s)\n");
     printf("  --emit-obj     Emit object file (.o)\n");
@@ -69,7 +75,7 @@ int main(int argc, char** argv) {
     }
 
     const char* input_file = NULL;
-    const char* output_file = "a.out";
+    const char* output_file = VASSIAN_DEFAULT_OUTPUT;
     enum { EMIT_EXE, EMIT_LLVM, EMIT_ASM, EMIT_OBJ } emit_mode = EMIT_EXE;
 
     for (int i = 1; i < argc; i++) {
@@ -204,7 +210,11 @@ int main(int argc, char** argv) {
         case EMIT_EXE:
             if (codegen_emit_object(cg, "temp.o")) {
                 char cmd[1024];
-                snprintf(cmd, sizeof(cmd), "clang -no-pie temp.o -o %s", output_file);
+#ifdef _WIN32
+                snprintf(cmd, sizeof(cmd), "clang temp.o -o \"%s\"", output_file);
+#else
+                snprintf(cmd, sizeof(cmd), "clang -no-pie temp.o -o \"%s\"", output_file);
+#endif
                 success = system(cmd) == 0;
                 remove("temp.o");
             }

@@ -7,6 +7,7 @@ struct Arena {
     size_t capacity;
     size_t offset;
     Arena* next;
+    Arena* current;
 };
 
 #define ARENA_DEFAULT_CAPACITY (64 * 1024)
@@ -25,6 +26,7 @@ Arena* arena_create(size_t initial_capacity) {
     arena->capacity = initial_capacity;
     arena->offset = 0;
     arena->next = NULL;
+    arena->current = arena;
     return arena;
 }
 
@@ -38,27 +40,37 @@ void arena_destroy(Arena* arena) {
 }
 
 static void* arena_alloc_slow(Arena* arena, size_t size, bool zero) {
-    size_t new_capacity = arena->capacity * 2;
-    while (new_capacity < arena->offset + size) {
+    Arena* current = arena->current;
+    size_t new_capacity = current->capacity * 2;
+    while (new_capacity < size) {
         new_capacity *= 2;
     }
-    uint8_t* new_buffer = (uint8_t*)malloc(new_capacity);
-    if (!new_buffer) return NULL;
-    memcpy(new_buffer, arena->buffer, arena->offset);
-    free(arena->buffer);
-    arena->buffer = new_buffer;
-    arena->capacity = new_capacity;
-    void* ptr = arena->buffer + arena->offset;
-    arena->offset += size;
+
+    Arena* block = (Arena*)malloc(sizeof(Arena));
+    if (!block) return NULL;
+    block->buffer = (uint8_t*)malloc(new_capacity);
+    if (!block->buffer) {
+        free(block);
+        return NULL;
+    }
+    block->capacity = new_capacity;
+    block->offset = size;
+    block->next = arena->next;
+    block->current = block;
+    arena->next = block;
+    arena->current = block;
+
+    void* ptr = block->buffer;
     if (zero) memset(ptr, 0, size);
     return ptr;
 }
 
 void* arena_alloc(Arena* arena, size_t size) {
     size = (size + 7) & ~7;
-    if (arena->offset + size <= arena->capacity) {
-        void* ptr = arena->buffer + arena->offset;
-        arena->offset += size;
+    Arena* current = arena->current;
+    if (current->offset + size <= current->capacity) {
+        void* ptr = current->buffer + current->offset;
+        current->offset += size;
         return ptr;
     }
     return arena_alloc_slow(arena, size, false);
@@ -66,9 +78,10 @@ void* arena_alloc(Arena* arena, size_t size) {
 
 void* arena_alloc_zero(Arena* arena, size_t size) {
     size = (size + 7) & ~7;
-    if (arena->offset + size <= arena->capacity) {
-        void* ptr = arena->buffer + arena->offset;
-        arena->offset += size;
+    Arena* current = arena->current;
+    if (current->offset + size <= current->capacity) {
+        void* ptr = current->buffer + current->offset;
+        current->offset += size;
         memset(ptr, 0, size);
         return ptr;
     }
