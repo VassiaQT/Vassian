@@ -3,6 +3,7 @@ build/
 build_wsl/
 build_win/
 build_*/
+dist/
 
 # Build artifacts
 *.exe

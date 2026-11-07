@@ -90,3 +90,33 @@ The build automatically copies `LLVM-C.dll` next to `vassian.exe`. Then run:
     build\src\vassian.exe test.vas
 
 GitHub Actions builds the same way (see `.github/workflows/build-windows.yml`).
+
+## Installing a release (Windows)
+
+Download and run `vassian-<version>-windows-x64-setup.exe` from the releases
+page. The installer copies `vassian.exe` and `LLVM-C.dll` into
+`%LOCALAPPDATA%\Programs\Vassian` and adds that folder to your user `PATH`.
+Open a **new** terminal afterwards so the updated `PATH` is picked up.
+
+`vassian.exe` is a command-line compiler, not a GUI application. Double-clicking
+it opens a console and closes it immediately because no arguments were passed.
+Run it from a terminal instead.
+
+Compiling to a native executable also requires `clang` on your `PATH`
+(`choco install llvm`, or install LLVM from https://releases.llvm.org/).
+Emitting IR, assembly, or object files does not require `clang`.
+
+## Command line
+
+    vassian --version
+    vassian --help
+
+    vassian build hello.vas              # -> a.exe
+    vassian build hello.vas -o hello.exe
+    vassian run hello.vas                # compile and run
+
+    vassian hello.vas                    # same as "vassian build hello.vas"
+
+    vassian hello.vas --emit-llvm -o hello.ll
+    vassian hello.vas --emit-asm  -o hello.s
+    vassian hello.vas --emit-obj  -o hello.o
